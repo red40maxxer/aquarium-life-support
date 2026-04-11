@@ -75,8 +75,8 @@ try:
         # get temp trend to derive status
         temps_1hr = temp.get_last_1hr(conn)
         if temps_1hr and len(temps_1hr) > 2:
-            first = temps_1hr[0][0]
-            last = temps_1hr[-1][0]
+            first = float(temps_1hr[0][1])
+            last = float(temps_1hr[-1][1])
 
             res = last - first
             if res > 1:
