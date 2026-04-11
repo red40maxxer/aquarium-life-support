@@ -58,7 +58,7 @@ try:
         # header
         curr_temp = read_temp()
         curr_time_str = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
-        draw.text((180, 10), f"{curr_time_str}", fill="WHITE", font=font_small)
+        draw.text((160, 10), f"{curr_time_str}", fill="WHITE", font=font_small)
         draw.text((8, 8), f"{curr_temp} C", fill="WHITE", font=font_temp)
         #TODO: implement status logic
         draw.text((8, 44), "stablizing", fill="WHITE", font=font_small)
