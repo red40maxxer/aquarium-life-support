@@ -78,13 +78,13 @@ try:
             first = float(temps_1hr[0][1])
             last = float(temps_1hr[-1][1])
 
-            res = last - first
+            res = round(last - first, 3)
             if res > 1:
-                curr_status = f"increasing: Δ{res}C"
+                curr_status = f"increasing: {res}C"
             elif res < -1:
-                curr_status = f"decreasing: Δ{res}C"
+                curr_status = f"decreasing: {res}C"
             else:
-                curr_status = f"stable: Δ{res}C"
+                curr_status = f"stable: {res}C"
 
         logging.debug(f"[temp]: {curr_temp}")
         logging.debug(f"[timestamp]: {curr_time_str}")
