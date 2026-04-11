@@ -7,6 +7,7 @@ from PIL import Image,ImageDraw,ImageFont
 import time
 import sqlite3
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import temp
 
@@ -62,7 +63,7 @@ try:
 
 
         curr_temp = temp.read_temp()
-        curr_time = datetime.now()
+        curr_time = datetime.now(tz=ZoneInfo("America/New_York"))
         curr_time_str = curr_time.strftime("%d-%m-%Y %H:%M:%S")
 
         # log temperature to db
