@@ -28,6 +28,28 @@ def init_db():
     conn.commit()
     return conn
 
+def draw_sparkline(draw, points, x, y, w, h, color="WHITE"):
+    if not points or len(points) < 2:
+        return
+
+    vals = [float(p[1]) for p in points]
+    vmin = min(vals)
+    vmax = max(vals)
+
+    if vmax == vmin:
+        vmax += 0.1
+
+    step_x = w / (len(vals) - 1)
+    coords = []
+
+    for i, v in enumerate(vals):
+        px = x + i * step_x
+        py = y + h - ((v - vmin) / (vmax - vmin)) * h
+        coords.append((px, py))
+
+    for i in range(len(coords) - 1):
+        draw.line((coords[i], coords[i + 1]), fill=color, width=2)
+
 # Pin configs 
 RST = 27
 DC = 25
@@ -95,7 +117,7 @@ try:
         draw.text((160, 10), f"{curr_time_str}", fill="WHITE", font=font_small)
         draw.text((8, 8), f"{curr_temp}C", fill="WHITE", font=font_temp)
         draw.text((8, 44), f"{curr_status}", fill="WHITE", font=font_small)
-
+        draw_sparkline(draw, temps_1hr, 8, 190, 304, 42)
         disp.ShowImage(image)
         # TODO: figure out optimal polling period
         time.sleep(1)
