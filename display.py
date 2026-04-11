@@ -28,7 +28,7 @@ try:
     font = ImageFont.truetype("agamefont.ttf",25)
     draw.text((5, 58), 'hello world', fill="WHITE", font=font)
     
-    disp.showImage(image1)
+    disp.ShowImage(image1)
     
 except IOError as e:
     logging.info(e)    
