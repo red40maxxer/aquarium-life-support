@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/pi/aquarium-lifesupport
-ExecStart=/usr/bin/python3 display.py
+WorkingDirectory=/home/pi/aquarium-life-support
+ExecStart=/usr/bin/sudo /usr/bin/python3 display.py
 Restart=on-failure
 RestartSec=5
 
