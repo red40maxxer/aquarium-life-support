@@ -1,0 +1,13 @@
+[Unit]
+Description=Puffer aquarium display
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/aquarium-lifesupport
+ExecStart=/usr/bin/python3 display.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

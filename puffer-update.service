@@ -1,0 +1,16 @@
+[Unit]
+Description=Pull latest lifesupport code and restart display if changed
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/pi/aquarium-lifesupport
+ExecStart=/bin/bash -c '\
+  before=$(git rev-parse HEAD) && \
+  git pull --ff-only && \
+  after=$(git rev-parse HEAD) && \
+  if [ "$before" != "$after" ]; then \
+    echo "New commits detected, restarting puffer-display..." && \
+    systemctl restart puffer-display.service; \
+  else \
+    echo "Already up to date."; \
+  fi'
