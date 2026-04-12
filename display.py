@@ -1,5 +1,6 @@
 import os
 import sys
+import signal
 import logging
 import spidev as SPI
 from lib import LCD_2inch
@@ -59,6 +60,13 @@ device = 0
 logging.basicConfig(level=logging.DEBUG)
 
 LOG_INTERVAL = 60
+
+def shutdown(signum, frame):
+    logging.info(f"received signal {signum}, shutting down")
+    disp.module_exit()
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, shutdown)
 
 try:
     conn = init_db()
