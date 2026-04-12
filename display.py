@@ -117,7 +117,11 @@ try:
         draw.text((160, 10), f"{curr_time_str}", fill="WHITE", font=font_small)
         draw.text((8, 8), f"{curr_temp}C", fill="WHITE", font=font_temp)
         draw.text((8, 44), f"{curr_status}", fill="WHITE", font=font_small)
-        draw_sparkline(draw, temps_1hr, 8, 190, 304, 42)
+
+        # 24h sparkline
+        temps_24hr = temp.get_last_24h(conn)
+        draw.text((8, 68), "24h", fill="GRAY", font=font_small)
+        draw_sparkline(draw, temps_24hr, 8, 88, 304, 130)
         disp.ShowImage(image)
         # TODO: figure out optimal polling period
         time.sleep(1)
