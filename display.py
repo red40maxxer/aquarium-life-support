@@ -238,11 +238,11 @@ def main():
 
             # 24h sparkline
             temps_24hr = temp.get_last_24h(conn)
-            spark_stats = draw_sparkline(draw, temps_24hr, 8, 148, screen_w - 16, 80, font_tiny)
-            draw.text((8, 130), "24h", fill=(150, 160, 160), font=font_tiny)
+            spark_stats = draw_sparkline(draw, temps_24hr, 8, 164, screen_w - 16, 58, font_tiny)
+            draw.text((8, 146), "24h", fill=(150, 160, 160), font=font_tiny)
             if spark_stats:
                 draw.text(
-                    (55, 130),
+                    (55, 146),
                     f"min {format_temp(spark_stats['min'])}",
                     fill=(116, 198, 255),
                     font=font_tiny,
@@ -251,7 +251,7 @@ def main():
                     draw,
                     f"max {format_temp(spark_stats['max'])}",
                     screen_w - 8,
-                    130,
+                    146,
                     font_tiny,
                     (255, 220, 95),
                 )
