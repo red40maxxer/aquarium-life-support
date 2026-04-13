@@ -3,7 +3,7 @@ Description=Pull latest lifesupport code and restart display if changed
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/pi/aquarium-lifesupport
+WorkingDirectory=/home/pi/aquarium-life-support
 ExecStart=/bin/bash -c '\
   before=$(git rev-parse HEAD) && \
   git pull --ff-only && \
