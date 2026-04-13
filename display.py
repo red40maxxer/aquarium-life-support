@@ -16,6 +16,7 @@ PUFFER_IMAGE = "puffer.png"
 SCREEN_BG = (0, 0, 0)
 
 disp = None
+latest_log_message = ""
 
 try:
     RESAMPLE = Image.Resampling.LANCZOS
@@ -37,6 +38,12 @@ def init_db():
     conn.commit()
     return conn
 
+
+class LatestLogHandler(logging.Handler):
+    def emit(self, record):
+        global latest_log_message
+        latest_log_message = self.format(record)
+
 def text_size(draw, text, font):
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
@@ -45,6 +52,16 @@ def text_size(draw, text, font):
 def draw_right_aligned(draw, text, right, y, font, fill):
     width, _ = text_size(draw, text, font)
     draw.text((right - width, y), text, fill=fill, font=font)
+
+
+def fit_text(draw, text, font, max_width):
+    if text_size(draw, text, font)[0] <= max_width:
+        return text
+
+    ellipsis = "..."
+    while text and text_size(draw, text + ellipsis, font)[0] > max_width:
+        text = text[:-1]
+    return text + ellipsis if text else ellipsis
 
 
 def format_temp(value):
@@ -141,6 +158,9 @@ BL = 18
 bus = 0 
 device = 0 
 logging.basicConfig(level=logging.DEBUG)
+latest_log_handler = LatestLogHandler()
+latest_log_handler.setFormatter(logging.Formatter("%(levelname).1s %(message)s"))
+logging.getLogger().addHandler(latest_log_handler)
 
 LOG_INTERVAL = 60
 
@@ -235,6 +255,9 @@ def main():
                     font_tiny,
                     (255, 220, 95),
                 )
+
+            log_line = fit_text(draw, latest_log_message, font_tiny, screen_w - 16)
+            draw.text((8, 230), log_line, fill=(115, 128, 128), font=font_tiny)
 
             disp.ShowImage(image)
             # TODO: figure out optimal polling period
