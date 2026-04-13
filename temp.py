@@ -1,5 +1,6 @@
 import glob
 import time
+from datetime import datetime
 
 base_dir = '/sys/bus/w1/devices/'
 device_folder = glob.glob(base_dir + '28*')[0]
@@ -28,6 +29,8 @@ def read_temp():
 def log_temp(conn, temp_c, ts=None):
     if ts is None:
         ts = int(time.time())
+    elif isinstance(ts, datetime):
+        ts = int(ts.timestamp())
     conn.execute(
         "INSERT INTO temperature_log (ts, temp_c) VALUES (?, ?)",
         (ts, temp_c),

@@ -1,8 +1,6 @@
-import os
 import sys
 import signal
 import logging
-import spidev as SPI
 from lib import LCD_2inch
 from PIL import Image,ImageDraw,ImageFont
 import time
@@ -13,6 +11,16 @@ from zoneinfo import ZoneInfo
 import temp
 
 DB_PATH = "aquarium.db"
+DISPLAY_TZ = ZoneInfo("America/Toronto")
+PUFFER_IMAGE = "puffer.png"
+SCREEN_BG = (0, 0, 0)
+
+disp = None
+
+try:
+    RESAMPLE = Image.Resampling.LANCZOS
+except AttributeError:
+    RESAMPLE = Image.LANCZOS
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -29,27 +37,102 @@ def init_db():
     conn.commit()
     return conn
 
-def draw_sparkline(draw, points, x, y, w, h, color="WHITE"):
-    if not points or len(points) < 2:
+def text_size(draw, text, font):
+    bbox = draw.textbbox((0, 0), text, font=font)
+    return bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+
+def draw_right_aligned(draw, text, right, y, font, fill):
+    width, _ = text_size(draw, text, font)
+    draw.text((right - width, y), text, fill=fill, font=font)
+
+
+def format_temp(value):
+    return f"{float(value):.1f}C"
+
+
+def load_puffer_image(path=PUFFER_IMAGE, max_size=(88, 76)):
+    try:
+        puffer = Image.open(path).convert("RGB")
+    except OSError as exc:
+        logging.warning(f"[puffer] could not load {path}: {exc}")
+        return None
+
+    puffer.thumbnail(max_size, RESAMPLE)
+    return puffer
+
+
+def paste_centered(base_image, overlay, center_x, y):
+    if overlay is None:
         return
+
+    x = int(center_x - overlay.width / 2)
+    base_image.paste(overlay, (x, y))
+
+
+def draw_sparkline(draw, points, x, y, w, h, font, color=(92, 232, 244)):
+    chart_bg = (4, 12, 13)
+    grid = (22, 46, 49)
+    border = (58, 91, 95)
+    label = (145, 165, 164)
+
+    draw.rectangle((x, y, x + w, y + h), fill=chart_bg, outline=border)
+
+    inner_x = x + 5
+    inner_y = y + 7
+    inner_w = w - 10
+    inner_h = h - 14
+
+    for frac in (0.25, 0.5, 0.75):
+        gy = inner_y + int(inner_h * frac)
+        draw.line((inner_x, gy, inner_x + inner_w, gy), fill=grid, width=1)
+
+    if not points:
+        msg = "collecting trend data"
+        msg_w, msg_h = text_size(draw, msg, font)
+        draw.text(
+            (x + (w - msg_w) / 2, y + (h - msg_h) / 2),
+            msg,
+            fill=label,
+            font=font,
+        )
+        return None
 
     vals = [float(p[1]) for p in points]
     vmin = min(vals)
     vmax = max(vals)
 
     if vmax == vmin:
-        vmax += 0.1
+        display_min = vmin - 0.1
+        display_max = vmax + 0.1
+    else:
+        pad = (vmax - vmin) * 0.08
+        display_min = vmin - pad
+        display_max = vmax + pad
 
-    step_x = w / (len(vals) - 1)
+    step_x = inner_w / max(len(vals) - 1, 1)
     coords = []
 
     for i, v in enumerate(vals):
-        px = x + i * step_x
-        py = y + h - ((v - vmin) / (vmax - vmin)) * h
+        px = inner_x + i * step_x
+        py = inner_y + inner_h - ((v - display_min) / (display_max - display_min)) * inner_h
         coords.append((px, py))
 
-    for i in range(len(coords) - 1):
-        draw.line((coords[i], coords[i + 1]), fill=color, width=2)
+    if len(coords) == 1:
+        px, py = coords[0]
+        draw.ellipse((px - 3, py - 3, px + 3, py + 3), fill=color)
+    else:
+        for i in range(len(coords) - 1):
+            draw.line((coords[i], coords[i + 1]), fill=color, width=2)
+
+    min_idx = vals.index(vmin)
+    max_idx = vals.index(vmax)
+    min_x, min_y = coords[min_idx]
+    max_x, max_y = coords[max_idx]
+    draw.ellipse((min_x - 3, min_y - 3, min_x + 3, min_y + 3), fill=(105, 194, 255))
+    draw.ellipse((max_x - 3, max_y - 3, max_x + 3, max_y + 3), fill=(255, 218, 88))
+
+    return {"min": vmin, "max": vmax, "first": vals[0], "last": vals[-1]}
 
 # Pin configs 
 RST = 27
@@ -63,80 +146,108 @@ LOG_INTERVAL = 60
 
 def shutdown(signum, frame):
     logging.info(f"received signal {signum}, shutting down")
-    disp.module_exit()
+    if disp is not None:
+        disp.module_exit()
     sys.exit(0)
 
 signal.signal(signal.SIGTERM, shutdown)
 
-try:
-    conn = init_db()
-    logging.info("[db] initialized")
+def main():
+    global disp
 
-    disp = LCD_2inch.LCD_2inch()
-    # Initialize library.
-    disp.Init()
-    # Clear display.
-    disp.clear()
-    #Set the backlight to 100
-    disp.bl_DutyCycle(50)
+    try:
+        conn = init_db()
+        logging.info("[db] initialized")
 
-    font_temp = ImageFont.truetype("agamefont.ttf", 32)
-    font_small = ImageFont.truetype("agamefont.ttf", 16)
-    font_status = ImageFont.truetype("agamefont.ttf", 18)    
+        disp = LCD_2inch.LCD_2inch()
+        # Initialize library.
+        disp.Init()
+        # Clear display.
+        disp.clear()
+        # Set the backlight to 50%.
+        disp.bl_DutyCycle(50)
 
-    last_log = 0
-    # keep it running forever
-    while True:
-        # refresh image each time 
-        image = Image.new("RGB", (disp.height, disp.width ), "BLACK")
-        draw = ImageDraw.Draw(image)
+        font_temp = ImageFont.truetype("agamefont.ttf", 30)
+        font_small = ImageFont.truetype("agamefont.ttf", 16)
+        font_tiny = ImageFont.truetype("agamefont.ttf", 14)
+        puffer_img = load_puffer_image()
+
+        last_log = 0
+        # keep it running forever
+        while True:
+            # refresh image each time
+            image = Image.new("RGB", (disp.height, disp.width), SCREEN_BG)
+            draw = ImageDraw.Draw(image)
+            screen_w, _ = image.size
+
+            curr_temp = temp.read_temp()
+            curr_time = datetime.now(tz=DISPLAY_TZ)
+            curr_time_str = curr_time.strftime("%m/%d %H:%M")
+
+            # log temperature to db
+            now_ts = time.time()
+            if now_ts - last_log >= LOG_INTERVAL:
+                temp.log_temp(conn, curr_temp, int(now_ts))
+                last_log = now_ts
+
+            curr_status = "warming up"
+            # get temp trend to derive status
+            temps_1hr = temp.get_last_1hr(conn)
+            if temps_1hr and len(temps_1hr) > 2:
+                first = float(temps_1hr[0][1])
+                last = float(temps_1hr[-1][1])
+
+                res = round(last - first, 1)
+                if res > 1:
+                    curr_status = f"rising +{res:.1f}C/hr"
+                elif res < -1:
+                    curr_status = f"falling {res:.1f}C/hr"
+                else:
+                    curr_status = f"stable {res:+.1f}C/hr"
+
+            logging.debug(f"[temp]: {curr_temp}")
+            logging.debug(f"[timestamp]: {curr_time_str}")
+            logging.debug(f"[status]: {curr_status}")
+
+            # header
+            draw.text((8, 7), format_temp(curr_temp), fill="WHITE", font=font_temp)
+            draw_right_aligned(draw, curr_time_str, screen_w - 8, 10, font_small, (212, 222, 222))
+            draw.text((8, 42), curr_status, fill=(168, 224, 184), font=font_small)
+
+            paste_centered(image, puffer_img, screen_w / 2, 53)
+
+            # 24h sparkline
+            temps_24hr = temp.get_last_24h(conn)
+            spark_stats = draw_sparkline(draw, temps_24hr, 8, 148, screen_w - 16, 80, font_tiny)
+            draw.text((8, 130), "24h", fill=(150, 160, 160), font=font_tiny)
+            if spark_stats:
+                draw.text(
+                    (55, 130),
+                    f"min {format_temp(spark_stats['min'])}",
+                    fill=(116, 198, 255),
+                    font=font_tiny,
+                )
+                draw_right_aligned(
+                    draw,
+                    f"max {format_temp(spark_stats['max'])}",
+                    screen_w - 8,
+                    130,
+                    font_tiny,
+                    (255, 220, 95),
+                )
+
+            disp.ShowImage(image)
+            # TODO: figure out optimal polling period
+            time.sleep(1)
+
+    except IOError as e:
+        logging.info(e)
+    except KeyboardInterrupt:
+        if disp is not None:
+            disp.module_exit()
+        logging.info("quit:")
+        exit()
 
 
-        curr_temp = temp.read_temp()
-        curr_time = datetime.now(tz=ZoneInfo("America/New_York"))
-        curr_time_str = curr_time.strftime("%d-%m-%Y %H:%M:%S")
-
-        # log temperature to db
-        now_ts = time.time()
-        if now_ts - last_log >= LOG_INTERVAL:
-            temp.log_temp(conn, curr_temp, curr_time)
-            last_log = now_ts
-
-        curr_status = "no data"
-        # get temp trend to derive status
-        temps_1hr = temp.get_last_1hr(conn)
-        if temps_1hr and len(temps_1hr) > 2:
-            first = float(temps_1hr[0][1])
-            last = float(temps_1hr[-1][1])
-
-            res = round(last - first, 3)
-            if res > 1:
-                curr_status = f"increasing: {res}C"
-            elif res < -1:
-                curr_status = f"decreasing: {res}C"
-            else:
-                curr_status = f"stable: {res}C"
-
-        logging.debug(f"[temp]: {curr_temp}")
-        logging.debug(f"[timestamp]: {curr_time_str}")
-        logging.debug(f"[status]: {curr_status}")
-
-        # header
-        draw.text((160, 10), f"{curr_time_str}", fill="WHITE", font=font_small)
-        draw.text((8, 8), f"{curr_temp}C", fill="WHITE", font=font_temp)
-        draw.text((8, 44), f"{curr_status}", fill="WHITE", font=font_small)
-
-        # 24h sparkline
-        temps_24hr = temp.get_last_24h(conn)
-        draw.text((8, 68), "24h", fill="GRAY", font=font_small)
-        draw_sparkline(draw, temps_24hr, 8, 88, 304, 130)
-        disp.ShowImage(image)
-        # TODO: figure out optimal polling period
-        time.sleep(1)
-
-except IOError as e:
-    logging.info(e)    
-except KeyboardInterrupt:
-    disp.module_exit()
-    logging.info("quit:")
-    exit()
+if __name__ == "__main__":
+    main()
