@@ -234,7 +234,7 @@ def main():
             draw_right_aligned(draw, curr_time_str, screen_w - 8, 10, font_small, (212, 222, 222))
             draw.text((8, 42), curr_status, fill=(168, 224, 184), font=font_small)
 
-            paste_centered(image, puffer_img, screen_w / 2, 39)
+            paste_centered(image, puffer_img, screen_w / 2, 60)
 
             # 24h sparkline
             temps_24hr = temp.get_last_24h(conn)
