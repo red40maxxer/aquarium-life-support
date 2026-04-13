@@ -116,14 +116,7 @@ def draw_sparkline(
         draw.line((inner_x, gy, inner_x + inner_w, gy), fill=grid, width=1)
 
     if not points:
-        msg = "collecting trend data"
-        msg_w, msg_h = text_size(draw, msg, font)
-        draw.text(
-            (x + (w - msg_w) / 2, y + (h - msg_h) / 2),
-            msg,
-            fill=label,
-            font=font,
-        )
+        draw_sparkline_message(draw, "collecting trend data", x, y, w, h, font, label)
         return None
 
     rows = sorted((int(p[0]), float(p[1])) for p in points)
@@ -135,6 +128,7 @@ def draw_sparkline(
         rows = [(ts, value) for ts, value in rows if ts >= cutoff_ts]
 
     if not rows:
+        draw_sparkline_message(draw, "collecting trend data", x, y, w, h, font, label)
         return None
 
     vals = [value for _, value in rows]
@@ -178,6 +172,16 @@ def draw_sparkline(
     draw.ellipse((max_x - 3, max_y - 3, max_x + 3, max_y + 3), fill=(255, 218, 88))
 
     return {"min": vmin, "max": vmax, "first": vals[0], "last": vals[-1]}
+
+
+def draw_sparkline_message(draw, msg, x, y, w, h, font, fill):
+    msg_w, msg_h = text_size(draw, msg, font)
+    draw.text(
+        (x + (w - msg_w) / 2, y + (h - msg_h) / 2),
+        msg,
+        fill=fill,
+        font=font,
+    )
 
 # Pin configs 
 RST = 27
