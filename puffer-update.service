@@ -5,9 +5,10 @@ Description=Pull latest lifesupport code and restart display if changed
 Type=oneshot
 WorkingDirectory=/home/pi/aquarium-life-support
 ExecStart=/bin/bash -c '\
-  before=$(git -c safe.directory=/home/pi/aquarium-life-support rev-parse HEAD) && \
-  git -c safe.directory=/home/pi/aquarium-life-support pull --ff-only && \
-  after=$(git -c safe.directory=/home/pi/aquarium-life-support rev-parse HEAD) && \
+  git config --global --add safe.directory /home/pi/aquarium-life-support && \
+  before=$(git rev-parse HEAD) && \
+  git pull --ff-only && \
+  after=$(git rev-parse HEAD) && \
   if [ "$before" != "$after" ]; then \
     echo "New commits detected, restarting puffer-display..." && \
     systemctl restart puffer-display.service; \

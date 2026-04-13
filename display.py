@@ -257,7 +257,7 @@ def main():
                 )
 
             log_line = fit_text(draw, latest_log_message, font_tiny, screen_w - 16)
-            draw.text((8, 230), log_line, fill=(115, 128, 128), font=font_tiny)
+            draw.text((8, 229), log_line, fill=(115, 128, 128), font=font_tiny)
 
             disp.ShowImage(image)
             # TODO: figure out optimal polling period
