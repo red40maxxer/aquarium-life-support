@@ -87,7 +87,18 @@ def paste_centered(base_image, overlay, center_x, y):
     base_image.paste(overlay, (x, y))
 
 
-def draw_sparkline(draw, points, x, y, w, h, font, color=(92, 232, 244)):
+def draw_sparkline(
+    draw,
+    points,
+    x,
+    y,
+    w,
+    h,
+    font,
+    color=(92, 232, 244),
+    now_ts=None,
+    window_seconds=None,
+):
     chart_bg = (4, 12, 13)
     grid = (22, 46, 49)
     border = (58, 91, 95)
@@ -115,7 +126,18 @@ def draw_sparkline(draw, points, x, y, w, h, font, color=(92, 232, 244)):
         )
         return None
 
-    vals = [float(p[1]) for p in points]
+    rows = sorted((int(p[0]), float(p[1])) for p in points)
+    end_ts = int(now_ts) if now_ts is not None else rows[-1][0]
+    end_ts = max(end_ts, rows[-1][0])
+
+    if window_seconds is not None:
+        cutoff_ts = end_ts - window_seconds
+        rows = [(ts, value) for ts, value in rows if ts >= cutoff_ts]
+
+    if not rows:
+        return None
+
+    vals = [value for _, value in rows]
     vmin = min(vals)
     vmax = max(vals)
 
@@ -127,11 +149,17 @@ def draw_sparkline(draw, points, x, y, w, h, font, color=(92, 232, 244)):
         display_min = vmin - pad
         display_max = vmax + pad
 
-    step_x = inner_w / max(len(vals) - 1, 1)
+    start_ts = rows[0][0]
+    if window_seconds is not None and end_ts - start_ts > window_seconds:
+        start_ts = end_ts - window_seconds
+    if end_ts <= start_ts:
+        start_ts = end_ts - 1
+
+    time_span = end_ts - start_ts
     coords = []
 
-    for i, v in enumerate(vals):
-        px = inner_x + i * step_x
+    for ts, v in rows:
+        px = inner_x + ((ts - start_ts) / time_span) * inner_w
         py = inner_y + inner_h - ((v - display_min) / (display_max - display_min)) * inner_h
         coords.append((px, py))
 
@@ -163,6 +191,20 @@ latest_log_handler.setFormatter(logging.Formatter("%(levelname).1s %(message)s")
 logging.getLogger().addHandler(latest_log_handler)
 
 LOG_INTERVAL = 60
+SPARKLINE_WINDOW_SECONDS = 24 * 60 * 60
+
+
+def merge_temp_points(*point_sets):
+    points_by_ts = {}
+    for points in point_sets:
+        for ts, temp_c in points:
+            points_by_ts[int(ts)] = float(temp_c)
+
+    return sorted(points_by_ts.items())
+
+
+def trim_points(points, cutoff_ts):
+    return [(ts, temp_c) for ts, temp_c in points if ts >= cutoff_ts]
 
 def shutdown(signum, frame):
     logging.info(f"received signal {signum}, shutting down")
@@ -193,6 +235,7 @@ def main():
         puffer_img = load_puffer_image()
 
         last_log = 0
+        live_points = []
         # keep it running forever
         while True:
             # refresh image each time
@@ -206,13 +249,24 @@ def main():
 
             # log temperature to db
             now_ts = time.time()
+            now_ts_int = int(now_ts)
+            if not live_points or live_points[-1][0] != now_ts_int:
+                live_points.append((now_ts_int, curr_temp))
+
             if now_ts - last_log >= LOG_INTERVAL:
-                temp.log_temp(conn, curr_temp, int(now_ts))
+                temp.log_temp(conn, curr_temp, now_ts_int)
                 last_log = now_ts
+                live_points = [(now_ts_int, curr_temp)]
+                logging.info(f"[db] logged {curr_temp:.3f}C")
+
+            live_points = trim_points(
+                live_points,
+                now_ts_int - SPARKLINE_WINDOW_SECONDS,
+            )
 
             curr_status = "warming up"
             # get temp trend to derive status
-            temps_1hr = temp.get_last_1hr(conn)
+            temps_1hr = merge_temp_points(temp.get_last_1hr(conn), live_points)
             if temps_1hr and len(temps_1hr) > 2:
                 first = float(temps_1hr[0][1])
                 last = float(temps_1hr[-1][1])
@@ -237,12 +291,25 @@ def main():
             paste_centered(image, puffer_img, screen_w / 2, 60)
 
             # 24h sparkline
-            temps_24hr = temp.get_last_24h(conn)
-            spark_stats = draw_sparkline(draw, temps_24hr, 8, 164, screen_w - 16, 58, font_tiny)
-            draw.text((8, 146), "24h", fill=(150, 160, 160), font=font_tiny)
+            temps_24hr_db = temp.get_last_24h(conn)
+            temps_24hr = merge_temp_points(temps_24hr_db, live_points)
+            spark_stats = draw_sparkline(
+                draw,
+                temps_24hr,
+                8,
+                164,
+                screen_w - 16,
+                58,
+                font_tiny,
+                now_ts=now_ts_int,
+                window_seconds=SPARKLINE_WINDOW_SECONDS,
+            )
+            spark_label = f"24h db{len(temps_24hr_db)}"
+            draw.text((8, 146), spark_label, fill=(150, 160, 160), font=font_tiny)
             if spark_stats:
+                spark_label_w, _ = text_size(draw, spark_label, font_tiny)
                 draw.text(
-                    (55, 146),
+                    (16 + spark_label_w, 146),
                     f"min {format_temp(spark_stats['min'])}",
                     fill=(116, 198, 255),
                     font=font_tiny,
