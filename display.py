@@ -12,7 +12,8 @@ import temp
 
 DB_PATH = "aquarium.db"
 DISPLAY_TZ = ZoneInfo("America/Toronto")
-PUFFER_IMAGE = "puffer.png"
+PUFFER_FRAMES = ("idle1.png", "idle2.png")
+PUFFER_FRAME_INTERVAL = 0.5
 SCREEN_BG = (0, 0, 0)
 
 disp = None
@@ -68,7 +69,7 @@ def format_temp(value):
     return f"{float(value):.1f}C"
 
 
-def load_puffer_image(path=PUFFER_IMAGE, max_size=(88, 76)):
+def load_puffer_image(path, max_size=(88, 76)):
     try:
         puffer = Image.open(path).convert("RGB")
     except OSError as exc:
@@ -77,6 +78,11 @@ def load_puffer_image(path=PUFFER_IMAGE, max_size=(88, 76)):
 
     puffer.thumbnail(max_size, RESAMPLE)
     return puffer
+
+
+def load_puffer_frames(paths=PUFFER_FRAMES, max_size=(88, 76)):
+    frames = [load_puffer_image(p, max_size) for p in paths]
+    return [f for f in frames if f is not None]
 
 
 def paste_centered(base_image, overlay, center_x, y):
@@ -212,7 +218,7 @@ def main():
         font_temp = ImageFont.truetype("agamefont.ttf", 30)
         font_small = ImageFont.truetype("agamefont.ttf", 16)
         font_tiny = ImageFont.truetype("agamefont.ttf", 14)
-        puffer_img = load_puffer_image()
+        puffer_frames = load_puffer_frames()
 
         last_log = 0
         # keep it running forever
@@ -256,7 +262,9 @@ def main():
             draw_right_aligned(draw, curr_time_str, screen_w - 8, 10, font_small, (212, 222, 222))
             draw.text((8, 42), curr_status, fill=(168, 224, 184), font=font_small)
 
-            paste_centered(image, puffer_img, screen_w / 2, 60)
+            if puffer_frames:
+                frame_idx = int(time.time() / PUFFER_FRAME_INTERVAL) % len(puffer_frames)
+                paste_centered(image, puffer_frames[frame_idx], screen_w / 2, 60)
 
             # 24h sparkline
             temps_24hr = temp.get_last_24h(conn)
