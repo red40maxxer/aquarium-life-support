@@ -13,7 +13,7 @@ import temp
 DB_PATH = "aquarium.db"
 DISPLAY_TZ = ZoneInfo("America/Toronto")
 PUFFER_FRAMES = ("idle1.png", "idle2.png")
-PUFFER_FRAME_INTERVAL = 0.5
+PUFFER_FRAME_INTERVAL = 0.15
 SCREEN_BG = (0, 0, 0)
 
 disp = None
@@ -69,7 +69,7 @@ def format_temp(value):
     return f"{float(value):.1f}C"
 
 
-def load_puffer_image(path, max_size=(88, 76)):
+def load_puffer_image(path, max_size=(104, 90)):
     try:
         puffer = Image.open(path).convert("RGB")
     except OSError as exc:
@@ -80,7 +80,7 @@ def load_puffer_image(path, max_size=(88, 76)):
     return puffer
 
 
-def load_puffer_frames(paths=PUFFER_FRAMES, max_size=(88, 76)):
+def load_puffer_frames(paths=PUFFER_FRAMES, max_size=(104, 90)):
     frames = [load_puffer_image(p, max_size) for p in paths]
     return [f for f in frames if f is not None]
 
