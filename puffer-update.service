@@ -3,6 +3,7 @@ Description=Pull latest lifesupport code and restart display if changed
 
 [Service]
 Type=oneshot
+User=pi
 WorkingDirectory=/home/pi/aquarium-life-support
 ExecStart=/bin/bash -c '\
   git config --global --add safe.directory /home/pi/aquarium-life-support && \
