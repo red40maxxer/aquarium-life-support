@@ -291,7 +291,7 @@ def main():
 
             disp.ShowImage(image)
             # TODO: figure out optimal polling period
-            time.sleep(1)
+            time.sleep(0.15)
 
     except IOError as e:
         logging.info(e)
